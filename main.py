@@ -20,8 +20,11 @@ from hashlib import sha1
 import time, os, json, base64, hmac, urllib
 from google.appengine.ext import blobstore
 from google.appengine.ext.webapp import blobstore_handlers
-import secrets
+import lib.cloudstorage as gcs
 import logging
+
+import secrets
+
 
 template_dir = os.path.join(os.path.dirname(__file__), '')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
