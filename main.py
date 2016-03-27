@@ -74,7 +74,10 @@ class BlobStore(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
         self.render_json(dict({'uploadUrl': upload_url}))
 
     def post(self):
-        self.render_json(dict({'status': 'success!'}))
+        reportFile = self.get_uploads('file_input')
+        blob_info = reportFile[0]
+        # str(blob_info.key())
+        self.render_json({'status': 'success', 'blobKey': str(blob_info.key())})
 
     def options(self):
         self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
