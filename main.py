@@ -18,6 +18,8 @@ import webapp2
 import jinja2
 from hashlib import sha1
 import time, os, json, base64, hmac, urllib
+from google.appengine.ext import blobstore
+from google.appengine.ext.webapp import blobstore_handlers
 import secrets
 
 
@@ -52,6 +54,15 @@ class S3_Demo(BaseHandler):
     def get(self):
         self.render('templates/s3-demo.html')
 
+class BlobStore(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
+    def get(self):
+        upload_url = blobstore.create_upload_url('/blobstore')
+        self.write(upload_url)
+
+    def post(self):
+        pass
+
+
 # From https://devcenter.heroku.com/articles/s3-upload-python
 class SignS3(BaseHandler):
     def get(self):
@@ -84,5 +95,6 @@ class SignS3(BaseHandler):
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/sign_s3', SignS3),
-    ('/s3-demo', S3_Demo)
+    ('/s3-demo', S3_Demo),
+    ('/blobstore', BlobStore)
 ], debug=True)
