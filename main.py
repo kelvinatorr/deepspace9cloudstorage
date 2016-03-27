@@ -103,6 +103,56 @@ class BlobStoreDemo(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
 
 
 class GCSDemo(BaseHandler):
+
+    def get(self):
+        self.render('templates/gcs-demo.html')
+
+    def post(self):
+        reportFile = self.request.POST['file_input']
+        # self.write('test')
+        logging.error(reportFile.type)
+        bucket_name = os.environ.get('BUCKET_NAME',
+                                     'deepspace9-1134.appspot.com')
+
+        # self.response.headers['Content-Type'] = 'text/plain'
+        # self.response.write('Demo GCS Application running from Version: '
+        #                     + os.environ['CURRENT_VERSION_ID'] + '\n')
+        # self.response.write('Using bucket name: ' + bucket_name + '\n\n')
+
+        bucket = '/' + bucket_name
+        filename = bucket + '/' + reportFile.filename
+
+        """Create a file.
+
+        The retry_params specified in the open call will override the default
+        retry params for this particular file handle.
+
+        Args:
+          filename: filename.
+        """
+        # self.response.write('Creating file %s\n' % filename)
+
+        write_retry_params = gcs.RetryParams(backoff_factor=1.1)
+        gcs_file = gcs.open(filename,
+                            'w',
+                            content_type=reportFile.type,
+                            options={'x-goog-meta-foo': 'foo',
+                                     'x-goog-meta-bar': 'bar'},
+                            retry_params=write_retry_params)
+        gcs_file.write(reportFile.value)
+        # gcs_file.write('abcde\n')
+        # gcs_file.write('f' * 1024 * 4 + '\n')
+        gcs_file.close()
+        # self.write(reportFile.type)
+        # self.write(reportFile.filename)
+        gcs_file = gcs.open(filename)
+        self.response.headers['Content-Type'] = reportFile.type
+        self.response.headers['Content-Disposition'] = "attachment; filename=" + str(reportFile.filename)
+        self.response.write(gcs_file.read())
+        gcs_file.close()
+
+
+class GCSGitDemo(BaseHandler):
     """Main page for GCS demo application."""
 
     def get(self):
@@ -278,5 +328,6 @@ app = webapp2.WSGIApplication([
     ('/s3-demo', S3_Demo),
     ('/blobstore', BlobStore),
     ('/blobstore-demo', BlobStoreDemo),
+    ('/gcs-git-demo', GCSGitDemo),
     ('/gcs-demo', GCSDemo),
 ], debug=DEBUG)
