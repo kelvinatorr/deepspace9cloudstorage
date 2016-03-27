@@ -48,6 +48,10 @@ class MainHandler(BaseHandler):
         # self.write(secrets.test)
         self.render('index.html')
 
+class S3_Demo(BaseHandler):
+    def get(self):
+        self.render('templates/s3-demo.html')
+
 # From https://devcenter.heroku.com/articles/s3-upload-python
 class SignS3(BaseHandler):
     def get(self):
@@ -79,5 +83,6 @@ class SignS3(BaseHandler):
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
-    ('/sign_s3', SignS3)
+    ('/sign_s3', SignS3),
+    ('/s3-demo', S3_Demo)
 ], debug=True)
