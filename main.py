@@ -18,13 +18,19 @@ import webapp2
 import jinja2
 from hashlib import sha1
 import time, os, json, base64, hmac, urllib
+from google.appengine.ext import blobstore
+from google.appengine.ext.webapp import blobstore_handlers
 import secrets
-
+import logging
 
 template_dir = os.path.join(os.path.dirname(__file__), '')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
                                autoescape = True, variable_start_string='@|', variable_end_string='|@')
 
+if os.environ.get('SERVER_SOFTWARE','').startswith('Development'):
+    DEBUG = True
+else:
+    DEBUG = False
 
 class BaseHandler(webapp2.RequestHandler):
     def write(self, *a, **kw):
@@ -39,14 +45,50 @@ class BaseHandler(webapp2.RequestHandler):
 
     def initialize(self, *a, **kw):
         webapp2.RequestHandler.initialize(self, *a, **kw)
-        # uid = self.read_secure_cookie('user_id')
-        # self.user = uid and models.User.by_id(int(uid))
+        if DEBUG:
+            self.approved_origins = ['http://localhost:9000']
+        else:
+            self.approved_origins = ['https://deepspace9.firebaseapp.com']
+
+    def render_json(self, d):
+        json_txt = json.dumps(d)
+        self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
+        self.write(")]}',\n" + json_txt)
 
 
 class MainHandler(BaseHandler):
     def get(self):
         # self.write(secrets.test)
         self.render('index.html')
+
+class S3_Demo(BaseHandler):
+    def get(self):
+        self.render('templates/s3-demo.html')
+
+class BlobStore(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
+    def initialize(self, *a, **kw):
+        BaseHandler.initialize(self, *a, **kw)
+        if self.request.headers.get('Origin') and self.request.headers.get('Origin') in self.approved_origins:
+            self.response.headers.add_header('Access-Control-Allow-Origin', self.request.headers['Origin'])
+
+    def get(self):
+        upload_url = blobstore.create_upload_url('/blobstore')
+        self.render_json(dict({'uploadUrl': upload_url}))
+
+    def post(self):
+        reportFile = self.get_uploads('file_input')
+        blob_info = reportFile[0]
+        # str(blob_info.key())
+        self.render_json({'status': 'success', 'blobKey': str(blob_info.key())})
+
+    def options(self):
+        self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
+        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
+
+class BlobStoreDemo(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
+    def get(self):
+        upload_url = blobstore.create_upload_url('/blobstore')
+        self.render('templates/blobstore-demo.html', upload_url=upload_url)
 
 # From https://devcenter.heroku.com/articles/s3-upload-python
 class SignS3(BaseHandler):
@@ -79,5 +121,8 @@ class SignS3(BaseHandler):
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
-    ('/sign_s3', SignS3)
-], debug=True)
+    ('/sign_s3', SignS3),
+    ('/s3-demo', S3_Demo),
+    ('/blobstore', BlobStore),
+    ('/blobstore-demo', BlobStoreDemo),
+], debug=DEBUG)

@@ -5,3 +5,5 @@ appengine-generated/
 
 secrets.py
 secrets.pyc
+
+*.pyc
