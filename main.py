@@ -29,6 +29,8 @@ jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
 
 if os.environ.get('SERVER_SOFTWARE','').startswith('Development'):
     DEBUG = True
+else:
+    DEBUG = False
 
 class BaseHandler(webapp2.RequestHandler):
     def write(self, *a, **kw):
