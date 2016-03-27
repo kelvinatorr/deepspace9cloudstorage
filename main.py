@@ -74,12 +74,16 @@ class BlobStore(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
         self.render_json(dict({'uploadUrl': upload_url}))
 
     def post(self):
-        pass
+        self.render_json(dict({'status': 'success!'}))
 
     def options(self):
         self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
         self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
 
+class BlobStoreDemo(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
+    def get(self):
+        upload_url = blobstore.create_upload_url('/blobstore')
+        self.render('templates/blobstore-demo.html', upload_url=upload_url)
 
 # From https://devcenter.heroku.com/articles/s3-upload-python
 class SignS3(BaseHandler):
@@ -114,5 +118,6 @@ app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/sign_s3', SignS3),
     ('/s3-demo', S3_Demo),
-    ('/blobstore', BlobStore)
+    ('/blobstore', BlobStore),
+    ('/blobstore-demo', BlobStoreDemo),
 ], debug=DEBUG)
