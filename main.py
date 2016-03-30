@@ -59,7 +59,7 @@ class BaseHandler(webapp2.RequestHandler):
         if DEBUG:
             self.approved_origins = ['http://localhost:9000']
         else:
-            self.approved_origins = ['https://deepspace9.firebaseapp.com']
+            self.approved_origins = ['https://deepspace9.firebaseapp.com', 'http://localhost:9000']
 
     def render_json(self, d):
         json_txt = json.dumps(d)
@@ -103,14 +103,21 @@ class BlobStoreDemo(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
 
 
 class GCSDemo(BaseHandler):
+    def initialize(self, *a, **kw):
+        BaseHandler.initialize(self, *a, **kw)
+        if self.request.headers.get('Origin') and self.request.headers.get('Origin') in self.approved_origins:
+            self.response.headers.add_header('Access-Control-Allow-Origin', self.request.headers['Origin'])
+
+    def options(self):
+        self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
+        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
 
     def get(self):
         self.render('templates/gcs-demo.html')
 
     def post(self):
         reportFile = self.request.POST['file_input']
-        # self.write('test')
-        logging.error(reportFile.type)
+        folder_name = self.request.get('folderName')
         bucket_name = os.environ.get('BUCKET_NAME',
                                      'deepspace9-1134.appspot.com')
 
@@ -119,7 +126,7 @@ class GCSDemo(BaseHandler):
         #                     + os.environ['CURRENT_VERSION_ID'] + '\n')
         # self.response.write('Using bucket name: ' + bucket_name + '\n\n')
 
-        bucket = '/' + bucket_name
+        bucket = '/' + bucket_name + '/' + folder_name
         filename = bucket + '/' + reportFile.filename
 
         """Create a file.
@@ -140,11 +147,8 @@ class GCSDemo(BaseHandler):
                                      'x-goog-meta-bar': 'bar'},
                             retry_params=write_retry_params)
         gcs_file.write(reportFile.value)
-        # gcs_file.write('abcde\n')
-        # gcs_file.write('f' * 1024 * 4 + '\n')
         gcs_file.close()
-        # self.write(reportFile.type)
-        # self.write(reportFile.filename)
+        # # echo the file back
         gcs_file = gcs.open(filename)
         self.response.headers['Content-Type'] = reportFile.type
         self.response.headers['Content-Disposition'] = "attachment; filename=" + str(reportFile.filename)
