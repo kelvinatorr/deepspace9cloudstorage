@@ -25,6 +25,7 @@ import logging
 from google.appengine.api import app_identity
 
 import secrets
+from database.gcs_file import GCSFile
 
 
 my_default_retry_params = gcs.RetryParams(initial_delay=0.2,
@@ -240,7 +241,7 @@ class GCSGitDemo(BaseHandler):
                                 'Please check the logs for more details.\n')
 
         else:
-            # self.delete_files()
+            self.delete_files()
             self.response.write('\n\nThe demo ran successfully!\n')
 
     def create_file(self, filename):
@@ -368,6 +369,27 @@ class SignS3(BaseHandler):
         self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
         self.write(content)
 
+class NDBDemo(BaseHandler):
+    def get(self):
+        self.render('templates/ndb-demo.html')
+
+    def post(self):
+        self.write('hello\n')
+        user_id = self.request.get('userId')
+        user_name = self.request.get('userName')
+        original_file_name = 'original'
+        gcs_file_name = 'oh yeahs'
+        new_file = GCSFile.save_new(user_id=user_id, user_name=user_name, original_file_name=original_file_name, gcs_file_name=gcs_file_name)
+        new_file.put()
+        self.write('success\n')
+        self.write('Here is the new key \n')
+        self.write(new_file.key.urlsafe())
+        urlsafe_key = new_file.key.urlsafe()
+        # echo back the file
+        self.response.write('\r\n')
+        echo_file = GCSFile.get(urlsafe_key)
+        self.write(echo_file.user_name)
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/sign_s3', SignS3),
@@ -376,5 +398,6 @@ app = webapp2.WSGIApplication([
     ('/blobstore-demo', BlobStoreDemo),
     ('/gcs-git-demo', GCSGitDemo),
     ('/gcs-demo', GCSDemo),
+    ('/ndb-demo', NDBDemo),
     ('/gcs', GCS),
 ], debug=DEBUG)
