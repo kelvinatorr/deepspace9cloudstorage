@@ -374,7 +374,7 @@ class NDBDemo(BaseHandler):
         self.render('templates/ndb-demo.html')
 
     def post(self):
-        self.write('hello\n')
+        self.response.headers['Content-Type'] = 'text/plain'
         user_id = self.request.get('userId')
         user_name = self.request.get('userName')
         original_file_name = 'original'
@@ -386,7 +386,7 @@ class NDBDemo(BaseHandler):
         self.write(new_file.key.urlsafe())
         urlsafe_key = new_file.key.urlsafe()
         # echo back the file
-        self.response.write('\r\n')
+        self.response.write('\\n')
         echo_file = GCSFile.get(urlsafe_key)
         self.write(echo_file.user_name)
 
