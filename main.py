@@ -112,6 +112,16 @@ class GCS(BaseHandler):
         self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
         self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
 
+    def get(self):
+        file_name = self.request.get('fileName')
+        stat = gcs.stat(file_name)
+        gcs_file = gcs.open(file_name)
+        self.response.headers['Content-Type'] = stat.content_type
+        self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata['x-goog-meta-original-name']
+        self.response.write(gcs_file.read())
+        gcs_file.close()
+
+
     def post(self):
         reportFile = self.request.POST['file_input']
         folder_name = self.request.get('folderName')
@@ -126,7 +136,8 @@ class GCS(BaseHandler):
                             'w',
                             content_type=reportFile.type,
                             options={'x-goog-meta-user-name': user_name,
-                                     'x-goog-meta-user-id': user_id},
+                                     'x-goog-meta-user-id': user_id,
+                                     'x-goog-meta-original-name': str(reportFile.filename)},
                             retry_params=write_retry_params)
         gcs_file.write(reportFile.value)
         gcs_file.close()
