@@ -102,6 +102,37 @@ class BlobStoreDemo(BaseHandler, blobstore_handlers.BlobstoreUploadHandler):
         self.render('templates/blobstore-demo.html', upload_url=upload_url)
 
 
+class GCS(BaseHandler):
+    def initialize(self, *a, **kw):
+        BaseHandler.initialize(self, *a, **kw)
+        if self.request.headers.get('Origin') and self.request.headers.get('Origin') in self.approved_origins:
+            self.response.headers.add_header('Access-Control-Allow-Origin', self.request.headers['Origin'])
+
+    def options(self):
+        self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
+        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
+
+    def post(self):
+        reportFile = self.request.POST['file_input']
+        folder_name = self.request.get('folderName')
+        user_name = self.request.get('userName')
+        user_id = self.request.get('userId')
+        bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
+
+        bucket = '/' + bucket_name + '/' + folder_name
+        filename = bucket + '/' + reportFile.filename
+        write_retry_params = gcs.RetryParams(backoff_factor=1.1)
+        gcs_file = gcs.open(filename,
+                            'w',
+                            content_type=reportFile.type,
+                            options={'x-goog-meta-user-name': user_name,
+                                     'x-goog-meta-user-id': user_id},
+                            retry_params=write_retry_params)
+        gcs_file.write(reportFile.value)
+        gcs_file.close()
+        self.render_json({'status': 'success', 'fileName': filename})
+
+
 class GCSDemo(BaseHandler):
     def initialize(self, *a, **kw):
         BaseHandler.initialize(self, *a, **kw)
@@ -334,4 +365,5 @@ app = webapp2.WSGIApplication([
     ('/blobstore-demo', BlobStoreDemo),
     ('/gcs-git-demo', GCSGitDemo),
     ('/gcs-demo', GCSDemo),
+    ('/gcs', GCS),
 ], debug=DEBUG)
