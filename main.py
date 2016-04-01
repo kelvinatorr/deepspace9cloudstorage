@@ -135,8 +135,14 @@ class GCS(BaseHandler):
         folder_name = self.request.get('folderName')
         user_name = self.request.get('userName')
         user_id = self.request.get('userId')
-        bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
 
+        if not reportFile or not folder_name or not user_name or not user_id:
+            self.response.set_status(400)
+            self.render_json({'error': 'Not all required parameters found'})
+            return
+
+        
+        bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
         bucket = '/' + bucket_name + '/' + folder_name
         filename = bucket + '/' + reportFile.filename
         write_retry_params = gcs.RetryParams(backoff_factor=1.1)
