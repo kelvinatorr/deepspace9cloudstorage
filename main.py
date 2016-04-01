@@ -136,7 +136,10 @@ class GCS(BaseHandler):
         user_name = self.request.get('userName')
         user_id = self.request.get('userId')
 
-        if not reportFile or not folder_name or not user_name or not user_id:
+        if not reportFile.filename or not folder_name or not user_name or not user_id:
+            logging.error(reportFile)
+            logging.error(folder_name)
+            logging.error(user_id)
             self.response.set_status(400)
             self.render_json({'error': 'Not all required parameters found'})
             return
