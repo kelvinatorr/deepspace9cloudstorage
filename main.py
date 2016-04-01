@@ -115,13 +115,20 @@ class GCS(BaseHandler):
 
     def get(self):
         file_name = self.request.get('fileName')
-        stat = gcs.stat(file_name)
-        gcs_file = gcs.open(file_name)
-        self.response.headers['Content-Type'] = stat.content_type
-        self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata['x-goog-meta-original-name']
-        self.response.write(gcs_file.read())
-        gcs_file.close()
-
+        # stat = gcs.stat(file_name)
+        if file_name:
+            try:
+                stat = gcs.stat(file_name)
+            except gcs.NotFoundError:
+                self.response.set_status(404)
+                self.write('404: This file does not exist')
+            else:
+                gcs_file = gcs.open(file_name)
+                self.response.headers['Content-Type'] = stat.content_type
+                self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata[
+                    'x-goog-meta-original-name']
+                self.response.write(gcs_file.read())
+                gcs_file.close()
 
     def post(self):
         reportFile = self.request.POST['file_input']
