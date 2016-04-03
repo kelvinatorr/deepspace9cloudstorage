@@ -22,9 +22,11 @@ from google.appengine.ext import blobstore
 from google.appengine.ext.webapp import blobstore_handlers
 import lib.cloudstorage as gcs
 import logging
-from google.appengine.api import app_identity
+# from google.appengine.api import app_identity
+from datetime import datetime
 
 import secrets
+from database.gcs_file import GCSFile
 
 
 my_default_retry_params = gcs.RetryParams(initial_delay=0.2,
@@ -113,24 +115,76 @@ class GCS(BaseHandler):
         self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
 
     def get(self):
-        file_name = self.request.get('fileName')
-        stat = gcs.stat(file_name)
-        gcs_file = gcs.open(file_name)
-        self.response.headers['Content-Type'] = stat.content_type
-        self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata['x-goog-meta-original-name']
-        self.response.write(gcs_file.read())
-        gcs_file.close()
-
+        file_id = self.request.get('fileId')
+        # stat = gcs.stat(file_name)
+        if file_id and file_id.isdigit():
+            # get the gcs_file_name from the database
+            db_gcs_file = GCSFile.get(int(file_id))
+            if db_gcs_file:
+                # check if it exists in gcs
+                try:
+                    stat = gcs.stat(db_gcs_file.gcs_file_name)
+                except gcs.NotFoundError:
+                    self.response.set_status(404)
+                    self.write('404: This file does not exist')
+                else:
+                    # return it if it does
+                    gcs_file = gcs.open(db_gcs_file.gcs_file_name)
+                    self.response.headers['Content-Type'] = stat.content_type
+                    self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata[
+                        'x-goog-meta-original-name']
+                    self.response.write(gcs_file.read())
+                    gcs_file.close()
+            else:
+                self.response.set_status(404)
+                self.write('404: This file does not exist')
 
     def post(self):
         reportFile = self.request.POST['file_input']
         folder_name = self.request.get('folderName')
         user_name = self.request.get('userName')
         user_id = self.request.get('userId')
-        bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
 
+        if not reportFile.filename or not folder_name or not user_name or not user_id:
+            self.response.set_status(400)
+            self.render_json({'reason': 'Not all required parameters found', 'status': 'error'})
+            return
+
+
+        bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
         bucket = '/' + bucket_name + '/' + folder_name
         filename = bucket + '/' + reportFile.filename
+
+        # Check if the file already exists in google cloud storage
+        exists = True
+        try:
+            gcs.stat(filename)
+        except gcs.NotFoundError:
+            exists = False
+
+        if exists:
+            # find it in the database and get its key
+            files = GCSFile.get_by_gcs_file_name(filename)
+            if len(files) == 1:
+                db_gcs_file = files[0]
+                db_gcs_file.user_id = user_id
+                db_gcs_file.user_name = user_name
+                db_gcs_file.original_file_name = reportFile.filename
+                db_gcs_file.gcs_file_name = filename
+                db_gcs_file.timestamp = datetime.now()
+                logging.error(db_gcs_file.key.id())
+            else:
+                self.response.set_status(500)
+                self.render_json({'status': 'error', 'key': '', 'reason': 'Unexpected number of files found in the database'})
+                return
+        else:
+            # write a new entry in the DB
+            db_gcs_file = GCSFile.save_new(user_id=user_id, user_name=user_name, original_file_name=reportFile.filename,
+                                        gcs_file_name=filename)
+        # save to database
+        db_gcs_file.put()
+
+        # write the file to GCS
         write_retry_params = gcs.RetryParams(backoff_factor=1.1)
         gcs_file = gcs.open(filename,
                             'w',
@@ -141,7 +195,8 @@ class GCS(BaseHandler):
                             retry_params=write_retry_params)
         gcs_file.write(reportFile.value)
         gcs_file.close()
-        self.render_json({'status': 'success', 'fileName': filename})
+        # # reply to the app with success and the key
+        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe(), 'id': db_gcs_file.key.id()})
 
 
 class GCSDemo(BaseHandler):
@@ -240,7 +295,7 @@ class GCSGitDemo(BaseHandler):
                                 'Please check the logs for more details.\n')
 
         else:
-            # self.delete_files()
+            self.delete_files()
             self.response.write('\n\nThe demo ran successfully!\n')
 
     def create_file(self, filename):
@@ -368,6 +423,27 @@ class SignS3(BaseHandler):
         self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
         self.write(content)
 
+class NDBDemo(BaseHandler):
+    def get(self):
+        self.render('templates/ndb-demo.html')
+
+    def post(self):
+        self.response.headers['Content-Type'] = 'text/plain'
+        user_id = self.request.get('userId')
+        user_name = self.request.get('userName')
+        original_file_name = 'original'
+        gcs_file_name = 'oh yeahs'
+        new_file = GCSFile.save_new(user_id=user_id, user_name=user_name, original_file_name=original_file_name, gcs_file_name=gcs_file_name)
+        new_file.put()
+        self.write('success\n')
+        self.write('Here is the new key \n')
+        self.write(new_file.key.urlsafe())
+        urlsafe_key = new_file.key.urlsafe()
+        # echo back the file
+        self.response.write('\\n')
+        echo_file = GCSFile.get(urlsafe_key)
+        self.write(echo_file.user_name)
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/sign_s3', SignS3),
@@ -376,5 +452,6 @@ app = webapp2.WSGIApplication([
     ('/blobstore-demo', BlobStoreDemo),
     ('/gcs-git-demo', GCSGitDemo),
     ('/gcs-demo', GCSDemo),
+    ('/ndb-demo', NDBDemo),
     ('/gcs', GCS),
 ], debug=DEBUG)
