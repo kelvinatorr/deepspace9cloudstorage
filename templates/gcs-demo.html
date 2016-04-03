@@ -10,5 +10,12 @@
         <input type="text" name="folderName" required/>
         <button type="submit">Submit</button>
     </form>
+    <br>
+    <form method="POST" enctype="multipart/form-data" action="/gcs-manual-delete">
+        Delete this file
+        <input type="text" name="fileName" placeholder="Enter a file name" required/>
+        <input type="text" name="secret" required/>
+        <button type="submit">DELETE</button>
+    </form>
 </body>
 </html>
