@@ -16,9 +16,10 @@ class GCSFile(ndb.Model):
     return cls(parent=parent, user_id=user_id, user_name=user_name, original_file_name=original_file_name, gcs_file_name=gcs_file_name)
 
   @classmethod
-  def get(cls, urlsafe_key):
-    key = ndb.Key(urlsafe=urlsafe_key)
-    return key.get()
+  def get(cls, id):
+    # key = ndb.Key(urlsafe=urlsafe_key)
+    # return key.get()
+    return cls.get_by_id(id, ndb.Key('App', 'deepSpace9'))
 
   @classmethod
   def get_by_gcs_file_name(cls, gcs_file_name):

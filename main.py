@@ -22,7 +22,7 @@ from google.appengine.ext import blobstore
 from google.appengine.ext.webapp import blobstore_handlers
 import lib.cloudstorage as gcs
 import logging
-from google.appengine.api import app_identity
+# from google.appengine.api import app_identity
 from datetime import datetime
 
 import secrets
@@ -115,21 +115,29 @@ class GCS(BaseHandler):
         self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
 
     def get(self):
-        file_name = self.request.get('fileName')
+        file_id = self.request.get('fileId')
         # stat = gcs.stat(file_name)
-        if file_name:
-            try:
-                stat = gcs.stat(file_name)
-            except gcs.NotFoundError:
+        if file_id and file_id.isdigit():
+            # get the gcs_file_name from the database
+            db_gcs_file = GCSFile.get(int(file_id))
+            if db_gcs_file:
+                # check if it exists in gcs
+                try:
+                    stat = gcs.stat(db_gcs_file.gcs_file_name)
+                except gcs.NotFoundError:
+                    self.response.set_status(404)
+                    self.write('404: This file does not exist')
+                else:
+                    # return it if it does
+                    gcs_file = gcs.open(db_gcs_file.gcs_file_name)
+                    self.response.headers['Content-Type'] = stat.content_type
+                    self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata[
+                        'x-goog-meta-original-name']
+                    self.response.write(gcs_file.read())
+                    gcs_file.close()
+            else:
                 self.response.set_status(404)
                 self.write('404: This file does not exist')
-            else:
-                gcs_file = gcs.open(file_name)
-                self.response.headers['Content-Type'] = stat.content_type
-                self.response.headers['Content-Disposition'] = "attachment; filename=" + stat.metadata[
-                    'x-goog-meta-original-name']
-                self.response.write(gcs_file.read())
-                gcs_file.close()
 
     def post(self):
         reportFile = self.request.POST['file_input']
@@ -164,6 +172,7 @@ class GCS(BaseHandler):
                 db_gcs_file.original_file_name = reportFile.filename
                 db_gcs_file.gcs_file_name = filename
                 db_gcs_file.timestamp = datetime.now()
+                logging.error(db_gcs_file.key.id())
             else:
                 self.response.set_status(500)
                 self.render_json({'status': 'error', 'key': '', 'reason': 'Unexpected number of files found in the database'})
@@ -187,7 +196,7 @@ class GCS(BaseHandler):
         gcs_file.write(reportFile.value)
         gcs_file.close()
         # # reply to the app with success and the key
-        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe()})
+        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe(), 'id': db_gcs_file.key.id()})
 
 
 class GCSDemo(BaseHandler):
