@@ -116,7 +116,6 @@ class GCS(BaseHandler):
 
     def get(self):
         file_id = self.request.get('fileId')
-        # stat = gcs.stat(file_name)
         if file_id and file_id.isdigit():
             # get the gcs_file_name from the database
             db_gcs_file = GCSFile.get(int(file_id))
@@ -196,7 +195,7 @@ class GCS(BaseHandler):
         gcs_file.write(reportFile.value)
         gcs_file.close()
         # # reply to the app with success and the key
-        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe(), 'id': db_gcs_file.key.id()})
+        self.render_json({'status': 'success', 'id': db_gcs_file.key.id()})
 
     def delete(self):
         file_id = self.request.get('fileId')
