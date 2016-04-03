@@ -221,6 +221,21 @@ class GCS(BaseHandler):
                 self.write('404: This file does not exist')
 
 
+class GCSManualDelete(BaseHandler):
+    def post(self):
+        file_name = self.request.get('fileName')
+        secret = self.request.get('secret')
+        if secret == secrets.Google_Frontend:
+            try:
+                gcs.delete(file_name)
+            except gcs.NotFoundError:
+                pass
+            else:
+                self.write('success')
+        else:
+            self.write('no')
+
+
 class GCSDemo(BaseHandler):
     def initialize(self, *a, **kw):
         BaseHandler.initialize(self, *a, **kw)
@@ -475,5 +490,6 @@ app = webapp2.WSGIApplication([
     ('/gcs-git-demo', GCSGitDemo),
     ('/gcs-demo', GCSDemo),
     ('/ndb-demo', NDBDemo),
+    ('/gcs-manual-delete', GCSManualDelete),
     ('/gcs', GCS),
 ], debug=DEBUG)
