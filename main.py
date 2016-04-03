@@ -112,7 +112,7 @@ class GCS(BaseHandler):
 
     def options(self):
         self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
-        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
+        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE'
 
     def get(self):
         file_id = self.request.get('fileId')
@@ -197,6 +197,24 @@ class GCS(BaseHandler):
         gcs_file.close()
         # # reply to the app with success and the key
         self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe(), 'id': db_gcs_file.key.id()})
+
+    def delete(self):
+        file_id = self.request.get('fileId')
+        if file_id and file_id.isdigit():
+            # get the gcs_file_name from the database
+            db_gcs_file = GCSFile.get(int(file_id))
+            if db_gcs_file:
+                try:
+                    gcs.delete(db_gcs_file.gcs_file_name)
+                except gcs.NotFoundError:
+                    pass
+                else:
+                    # delete from the database
+                    db_gcs_file.key.delete()
+                    self.response.set_status(204)
+            else:
+                self.response.set_status(400)
+                self.write('404: This file does not exist')
 
 
 class GCSDemo(BaseHandler):
