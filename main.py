@@ -23,6 +23,7 @@ from google.appengine.ext.webapp import blobstore_handlers
 import lib.cloudstorage as gcs
 import logging
 from google.appengine.api import app_identity
+from datetime import datetime
 
 import secrets
 from database.gcs_file import GCSFile
@@ -137,17 +138,44 @@ class GCS(BaseHandler):
         user_id = self.request.get('userId')
 
         if not reportFile.filename or not folder_name or not user_name or not user_id:
-            logging.error(reportFile)
-            logging.error(folder_name)
-            logging.error(user_id)
             self.response.set_status(400)
-            self.render_json({'error': 'Not all required parameters found'})
+            self.render_json({'reason': 'Not all required parameters found', 'status': 'error'})
             return
 
-        
+
         bucket_name = os.environ.get('BUCKET_NAME', 'deepspace9-1134.appspot.com')
         bucket = '/' + bucket_name + '/' + folder_name
         filename = bucket + '/' + reportFile.filename
+
+        # Check if the file already exists in google cloud storage
+        exists = True
+        try:
+            gcs.stat(filename)
+        except gcs.NotFoundError:
+            exists = False
+
+        if exists:
+            # find it in the database and get its key
+            files = GCSFile.get_by_gcs_file_name(filename)
+            if len(files) == 1:
+                db_gcs_file = files[0]
+                db_gcs_file.user_id = user_id
+                db_gcs_file.user_name = user_name
+                db_gcs_file.original_file_name = reportFile.filename
+                db_gcs_file.gcs_file_name = filename
+                db_gcs_file.timestamp = datetime.now()
+            else:
+                self.response.set_status(500)
+                self.render_json({'status': 'error', 'key': '', 'reason': 'Unexpected number of files found in the database'})
+                return
+        else:
+            # write a new entry in the DB
+            db_gcs_file = GCSFile.save_new(user_id=user_id, user_name=user_name, original_file_name=reportFile.filename,
+                                        gcs_file_name=filename)
+        # save to database
+        db_gcs_file.put()
+
+        # write the file to GCS
         write_retry_params = gcs.RetryParams(backoff_factor=1.1)
         gcs_file = gcs.open(filename,
                             'w',
@@ -158,7 +186,8 @@ class GCS(BaseHandler):
                             retry_params=write_retry_params)
         gcs_file.write(reportFile.value)
         gcs_file.close()
-        self.render_json({'status': 'success', 'fileName': filename})
+        # # reply to the app with success and the key
+        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe()})
 
 
 class GCSDemo(BaseHandler):
