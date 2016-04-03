@@ -25,7 +25,3 @@ class GCSFile(ndb.Model):
   def get_by_gcs_file_name(cls, gcs_file_name):
     files = cls.query(cls.gcs_file_name == gcs_file_name)
     return list(files)
-    # if file:
-    #   return True
-    # else:
-    #   return False

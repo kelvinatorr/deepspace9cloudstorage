@@ -27,6 +27,7 @@ from datetime import datetime
 
 import secrets
 from database.gcs_file import GCSFile
+from database.file_deletes import FileDeletes
 
 
 my_default_retry_params = gcs.RetryParams(initial_delay=0.2,
@@ -111,12 +112,11 @@ class GCS(BaseHandler):
             self.response.headers.add_header('Access-Control-Allow-Origin', self.request.headers['Origin'])
 
     def options(self):
-        self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept'
-        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
+        self.response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Firebase-User-Id'
+        self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE'
 
     def get(self):
         file_id = self.request.get('fileId')
-        # stat = gcs.stat(file_name)
         if file_id and file_id.isdigit():
             # get the gcs_file_name from the database
             db_gcs_file = GCSFile.get(int(file_id))
@@ -196,7 +196,29 @@ class GCS(BaseHandler):
         gcs_file.write(reportFile.value)
         gcs_file.close()
         # # reply to the app with success and the key
-        self.render_json({'status': 'success', 'key': db_gcs_file.key.urlsafe(), 'id': db_gcs_file.key.id()})
+        self.render_json({'status': 'success', 'id': db_gcs_file.key.id()})
+
+    def delete(self):
+        file_id = self.request.get('fileId')
+        user_id = self.request.headers.get('Firebase-User-Id')
+        if file_id and user_id and file_id.isdigit():
+            # get the gcs_file_name from the database
+            db_gcs_file = GCSFile.get(int(file_id))
+            if db_gcs_file:
+                try:
+                    gcs.delete(db_gcs_file.gcs_file_name)
+                except gcs.NotFoundError:
+                    pass
+                else:
+                    # log the delete
+                    FileDeletes.save_new(user_id=user_id, gcs_file_name=db_gcs_file.gcs_file_name,
+                                         original_file_name=db_gcs_file.original_file_name).put_async()
+                    # delete from the database
+                    db_gcs_file.key.delete()
+                    self.response.set_status(204)
+            else:
+                self.response.set_status(400)
+                self.write('404: This file does not exist')
 
 
 class GCSDemo(BaseHandler):
